@@ -1,0 +1,126 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<script src="http://maps.kosmosnimki.ru/api/apil.js?key=XDFFQ5FI4H" charset="windows-1251"></script>
+<script type="text/javascript"> 
+window.onload = function()
+	{	
+		//Набор лавных переменных. KSMSNMK =KOSMOSNIMKI
+		var KSMSNMK_PermaId,
+			KSMSNMK_mapName, 
+			KSMSNMK_mode, 
+			KSMSNMK_positionX,
+			KSMSNMK_positionY, 
+			KSMSNMK_positionZ,
+			mapKosm_Width,
+			mapKosm_Height;
+
+		function getPemaData(permaUrl)
+		{
+			var xmlHttp = null;
+			xmlHttp = new XMLHttpRequest();
+			xmlHttp.open( "GET", permaUrl, false );
+			xmlHttp.send( null );
+			return xmlHttp.responseText;
+		}
+	
+		//Получаем данные
+		var mainSettings = {};
+		var endofURL = window.location.search.lastIndexOf("?")
+        var mapSettings = window.location.search.substring( endofURL + 1);
+        var mapSettings_components = mapSettings.split('&');
+
+        for(i in mapSettings_components) {
+          component_value = mapSettings_components[i].split('=');
+          mainSettings[component_value[0]] = component_value[1];
+        }
+
+		KSMSNMK_PermaId = mainSettings.gmxperma;
+		mapKosm_Width = mainSettings.mapdivw;
+		mapKosm_Height = mainSettings.mapdivh;
+
+		var mapKosmDiv = document.getElementById("mapKosm");
+
+		if ( mapKosm_Width ==null && mapKosm_Height==null) {
+			mapKosmDiv.style.width = '100%';
+			mapKosmDiv.style.height = '100%';	
+		}
+		else if ( mapKosm_Width == null ) {
+			mapKosmDiv.style.width = '100%';
+			mapKosmDiv.style.height = mapKosm_Height + 'px';
+		}
+		else if ( mapKosm_Height==null ) {
+			mapKosmDiv.style.height = '100%';
+			mapKosmDiv.style.width = mapKosm_Width +'px';
+		}
+		else {
+			mapKosmDiv.style.width = mapKosm_Width +'px';
+			mapKosmDiv.style.height = mapKosm_Height + 'px';
+		}
+
+		var inputPermaUrl = "http://maps.kosmosnimki.ru/tinyreference/get.ashx?id="+KSMSNMK_PermaId+"&WrapStyle=None"
+		var permaData = getPemaData(inputPermaUrl);
+		
+		//Проводим парсинг данных
+		var parsed_permaData = JSON.parse(permaData);
+		var permaDataResult = JSON.parse(parsed_permaData.Result);
+
+		//Извлекаем геометрию
+		var containedGeomArr = []; //Массив объектов
+		var containedGeomProps = []; //Массив свойств
+		
+		permaDataResult.drawnObjects.forEach(function(item) {
+			var containedGeom = gmxAPI.from_merc_geometry(item.geometry);
+
+			containedGeomArr.push(containedGeom);
+			containedGeomProps.push(item.properties);
+		});
+
+		KSMSNMK_mapName = permaDataResult.mapName;
+		KSMSNMK_mode = permaDataResult.mode;
+		KSMSNMK_positionX = gmxAPI.from_merc_x(permaDataResult.position.x);
+		KSMSNMK_positionY = gmxAPI.from_merc_y(permaDataResult.position.y);
+		KSMSNMK_positionZ = 17 - permaDataResult.position.z;
+				
+		var sourceHref = document.getElementById("toSource");
+		sourceHref.href = "http://maps.kosmosnimki.ru/api/index.html?permalink="+KSMSNMK_PermaId+"&"+KSMSNMK_mapName;
+				
+		//Создаем карту по полученным параметрам
+		createFlashMap(document.getElementById("mapKosm"), "maps.kosmosnimki.ru", KSMSNMK_mapName, function(map)
+		{ 
+			if(map.drawing) {
+				map.drawing.tools["POINT"].setVisible(false); // отключить инструмент маркеров
+				map.drawing.tools["POLYGON"].setVisible(false); // отключить инструмент рисования полигонов
+				map.drawing.tools["LINESTRING"].setVisible(false); // отключить инструмент рисования линий и измерения расстояний
+				map.drawing.tools["FRAME"].setVisible(false); // отключить инструмент ножницы
+			}
+			
+			map.setMode(KSMSNMK_mode);
+			map.moveTo(KSMSNMK_positionX, KSMSNMK_positionY, KSMSNMK_positionZ);
+
+			var geomObjs = map.addObject();
+			var geomData = [];
+			for (var geom_i = 0; geom_i < containedGeomArr.length; geom_i++)
+			{
+				for (var prop_i = 0; prop_i < containedGeomProps.length; prop_i++)
+				{
+					var geometria = containedGeomArr[geom_i];
+					var proper = containedGeomProps[prop_i];
+					geomData.push({
+						"geometry": geometria,
+						"properties": proper
+					});
+				}
+			};
+
+			geomObjs.setStyle({ outline: {thickness: 1, opacity: 90 } });	
+			geomObjs.addObjects( geomData );
+
+		}); 
+	}
+</script>
+</head>
+<body>
+<div id="mapKosm"></div><a id="toSource" target="_blank" href="http://maps.kosmosnimki.ru">Исходная карта</a>
+</body>
+</html>
